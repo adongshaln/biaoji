@@ -1,7 +1,5 @@
 package com.adongcraft.biaoji;
 
-import io.papermc.paper.event.player.PlayerPickBlockEvent;
-import io.papermc.paper.event.player.PlayerPickEntityEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -12,12 +10,17 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
+import org.bukkit.block.BlockFace;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Transformation;
@@ -29,9 +32,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public final class BiaojiPlugin extends JavaPlugin implements Listener {
+public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandExecutor {
     private static final String MARKER_TAG = "biaoji";
-    private static final double LOOK_REACH = 128.0D;
+    private static final double LOOK_REACH = 160.0D;
     private static final double EMPTY_DISTANCE = 50.0D;
     private static final int LIFETIME_TICKS = 80;
 
@@ -40,6 +43,10 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
+        var command = getCommand("biaoji");
+        if (command != null) {
+            command.setExecutor(this);
+        }
         getServer().getScheduler().runTaskTimer(this, this::tickPings, 10L, 10L);
         getLogger().info("标记已启用");
     }
@@ -55,21 +62,22 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onPickBlock(PlayerPickBlockEvent event) {
+    public void onSwapHands(PlayerSwapHandItemsEvent event) {
         event.setCancelled(true);
-        place(event.getPlayer());
+        mark(event.getPlayer());
     }
 
-    @EventHandler
-    public void onPickEntity(PlayerPickEntityEvent event) {
-        event.setCancelled(true);
-        if (isMarker(event.getEntity())) {
-            return;
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("这个命令只能由玩家使用。", NamedTextColor.RED));
+            return true;
         }
-        place(event.getPlayer());
+        mark(player);
+        return true;
     }
 
-    private void place(Player player) {
+    private void mark(Player player) {
         Location eye = player.getEyeLocation();
         Vector direction = eye.getDirection();
         World world = player.getWorld();
@@ -83,14 +91,24 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener {
         double blockDistance = distance(eye, blockHit);
         double entityDistance = distance(eye, entityHit);
         if (entityHit != null && entityHit.getHitEntity() != null && entityDistance <= blockDistance) {
-            spawn(entityHit.getHitEntity().getLocation().add(0.0D, entityHit.getHitEntity().getHeight() + 0.45D, 0.0D), entityHit.getHitEntity());
+            Entity target = entityHit.getHitEntity();
+            spawn(target.getLocation().add(0.0D, target.getHeight() + 0.45D, 0.0D), target);
+            player.sendActionBar(Component.text("已标记 " + target.getName(), NamedTextColor.GOLD));
             return;
         }
         if (blockHit != null && blockHit.getHitBlock() != null) {
-            spawn(blockHit.getHitBlock().getLocation().add(0.5D, 1.15D, 0.5D), null);
+            Location at = blockHit.getHitPosition().toLocation(world);
+            BlockFace face = blockHit.getHitBlockFace();
+            if (face != null) {
+                at.add(face.getModX() * 0.25D, face.getModY() * 0.25D, face.getModZ() * 0.25D);
+            }
+            at.add(0.0D, 0.2D, 0.0D);
+            spawn(at, null);
+            player.sendActionBar(Component.text("已标记方块", NamedTextColor.GOLD));
             return;
         }
         spawn(eye.clone().add(direction.clone().multiply(EMPTY_DISTANCE)), null);
+        player.sendActionBar(Component.text("已标记前方 50 格", NamedTextColor.GOLD));
     }
 
     private void spawn(Location location, Entity follow) {

@@ -2,5 +2,9 @@ name: Biaoji
 version: 1.0.0
 main: com.adongcraft.biaoji.BiaojiPlugin
 api-version: '26.3'
-description: Middle-click question-mark ping
+description: Look-direction question-mark ping
+commands:
+  biaoji:
+    description: 按视线标记方块、实体或前方 50 格
+    usage: /biaoji
 author: adongshaln
