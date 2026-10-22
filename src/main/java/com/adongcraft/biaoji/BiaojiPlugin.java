@@ -1,5 +1,7 @@
 package com.adongcraft.biaoji;
 
+import io.papermc.paper.event.player.PlayerPickBlockEvent;
+import io.papermc.paper.event.player.PlayerPickEntityEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -19,7 +21,10 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.RayTraceResult;
@@ -29,8 +34,11 @@ import org.joml.AxisAngle4f;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandExecutor {
     private static final String MARKER_TAG = "biaoji";
@@ -39,6 +47,7 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandE
     private static final int LIFETIME_TICKS = 80;
 
     private final List<Ping> pings = new ArrayList<>();
+    private final Map<UUID, Long> nextMark = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -61,9 +70,31 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandE
         pings.clear();
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onSwapHands(PlayerSwapHandItemsEvent event) {
         event.setCancelled(true);
+        mark(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onPickBlock(PlayerPickBlockEvent event) {
+        event.setCancelled(true);
+        mark(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onPickEntity(PlayerPickEntityEvent event) {
+        event.setCancelled(true);
+        if (!isMarker(event.getEntity())) {
+            mark(event.getPlayer());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onSwingAir(PlayerInteractEvent event) {
+        if (event.getAction() != Action.LEFT_CLICK_AIR || !event.getPlayer().isSneaking()) {
+            return;
+        }
         mark(event.getPlayer());
     }
 
@@ -78,6 +109,22 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandE
     }
 
     private void mark(Player player) {
+        long now = System.currentTimeMillis();
+        Long allowed = nextMark.get(player.getUniqueId());
+        if (allowed != null && allowed > now) {
+            return;
+        }
+        nextMark.put(player.getUniqueId(), now + 400L);
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, SoundCategory.PLAYERS, 1.0F, 1.6F);
+        try {
+            markNow(player);
+        } catch (RuntimeException exception) {
+            getLogger().warning("标记失败: " + exception.getMessage());
+            player.sendActionBar(Component.text("标记失败", NamedTextColor.RED));
+        }
+    }
+
+    private void markNow(Player player) {
         Location eye = player.getEyeLocation();
         Vector direction = eye.getDirection();
         World world = player.getWorld();
@@ -116,6 +163,7 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandE
         if (world == null) {
             return;
         }
+        world.getChunkAt(location);
         TextDisplay display = world.spawn(location, TextDisplay.class, entity -> {
             entity.text(Component.text("?", NamedTextColor.GOLD, TextDecoration.BOLD));
             entity.setBillboard(Display.Billboard.CENTER);
