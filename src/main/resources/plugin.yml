@@ -1,0 +1,6 @@
+name: Biaoji
+version: 1.0.0
+main: com.adongcraft.biaoji.BiaojiPlugin
+api-version: '26.3'
+description: Middle-click question-mark ping
+author: adongshaln
