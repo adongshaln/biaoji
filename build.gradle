@@ -25,5 +25,5 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.jar {
-    archiveFileName = 'biaoji-1.0.0.jar'
+    archiveFileName = 'mcpaper-biaoji-1.0.0.jar'
 }
