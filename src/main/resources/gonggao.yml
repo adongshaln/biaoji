@@ -1,0 +1,14 @@
+order: 20
+announcements:
+  - id: mark
+    title: 标记
+    pages:
+      - |-
+        输入 /biaoji，
+        会沿着你的准心标记。
+
+        看着方块或生物时，
+        标记打在它身上。
+        前面是空的，
+        就标在准心方向
+        大约 50 格处。
