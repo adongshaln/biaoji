@@ -1,7 +1,5 @@
 package com.adongcraft.biaoji;
 
-import io.papermc.paper.event.player.PlayerPickBlockEvent;
-import io.papermc.paper.event.player.PlayerPickEntityEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -21,11 +19,8 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Transformation;
@@ -52,12 +47,15 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandE
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getMessenger().registerIncomingPluginChannel(this, "biaoji:mark", (channel, player, data) -> {
+            if (data.length == 1 && data[0] == 1) mark(player);
+        });
         var command = getCommand("biaoji");
         if (command != null) {
             command.setExecutor(this);
         }
         getServer().getScheduler().runTaskTimer(this, this::tickPings, 10L, 10L);
-        getLogger().info("标记已启用");
+        getLogger().info("标记已启用：客户端独立按键（默认 G）或 /biaoji，保留原版副手和选取物品按键");
     }
 
     @Override
@@ -70,33 +68,7 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandE
         pings.clear();
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
-    public void onSwapHands(PlayerSwapHandItemsEvent event) {
-        event.setCancelled(true);
-        mark(event.getPlayer());
-    }
-
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
-    public void onPickBlock(PlayerPickBlockEvent event) {
-        event.setCancelled(true);
-        mark(event.getPlayer());
-    }
-
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
-    public void onPickEntity(PlayerPickEntityEvent event) {
-        event.setCancelled(true);
-        if (!isMarker(event.getEntity())) {
-            mark(event.getPlayer());
-        }
-    }
-
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
-    public void onSwingAir(PlayerInteractEvent event) {
-        if (event.getAction() != Action.LEFT_CLICK_AIR || !event.getPlayer().isSneaking()) {
-            return;
-        }
-        mark(event.getPlayer());
-    }
+    @EventHandler public void onQuit(PlayerQuitEvent event) { nextMark.remove(event.getPlayer().getUniqueId()); }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -109,6 +81,7 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandE
     }
 
     private void mark(Player player) {
+        if (!player.isOnline() || player.isDead() || !authenticated(player)) return;
         long now = System.currentTimeMillis();
         Long allowed = nextMark.get(player.getUniqueId());
         if (allowed != null && allowed > now) {
@@ -122,6 +95,16 @@ public final class BiaojiPlugin extends JavaPlugin implements Listener, CommandE
             getLogger().warning("标记失败: " + exception.getMessage());
             player.sendActionBar(Component.text("标记失败", NamedTextColor.RED));
         }
+    }
+
+    private boolean authenticated(Player player) {
+        var auth = getServer().getPluginManager().getPlugin("AuthMe");
+        if (auth == null || !auth.isEnabled()) return true;
+        try {
+            Class<?> api = auth.getClass().getClassLoader().loadClass("fr.xephi.authme.api.v3.AuthMeApi");
+            return Boolean.TRUE.equals(api.getMethod("isAuthenticated", Player.class)
+                    .invoke(api.getMethod("getInstance").invoke(null), player));
+        } catch (ReflectiveOperationException ex) { return false; }
     }
 
     private void markNow(Player player) {

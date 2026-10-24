@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'com.adongcraft.biaoji'
-version = '1.0.0'
+version = '1.1.0'
 
 repositories {
     maven { url = 'https://repo.papermc.io/repository/maven-public/' }
@@ -25,5 +25,10 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.jar {
-    archiveFileName = 'mcpaper-biaoji-1.0.0.jar'
+    archiveFileName = "mcpaper-biaoji-${version}.jar"
+}
+
+tasks.processResources {
+    inputs.property('version', project.version)
+    filesMatching('plugin.yml') { expand(version: project.version) }
 }

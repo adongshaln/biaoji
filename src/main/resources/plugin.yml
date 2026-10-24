@@ -1,8 +1,9 @@
 name: mcpaper-biaoji
-version: 1.0.0
+version: '${version}'
 main: com.adongcraft.biaoji.BiaojiPlugin
 api-version: '26.3'
 description: Look-direction question-mark ping
+softdepend: [AuthMe]
 commands:
   biaoji:
     description: 按视线标记方块、实体或前方 50 格
